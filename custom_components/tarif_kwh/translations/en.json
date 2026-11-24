@@ -23,14 +23,15 @@
       "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated."
     },
     "abort": {
-      "already_configured": "This option and power are already configured."
+      "already_configured": "This option is already configured: change its power from \"Configure\"."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Current price",
+        "title": "Settings",
         "data": {
+          "puissance": "Subscribed power (kVA)",
           "couleur_tempo": "Entity giving today's Tempo colour",
           "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00",
           "pointe_ejp": "Entity telling whether today is an EJP peak day"
@@ -41,7 +42,8 @@
       }
     },
     "error": {
-      "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated."
+      "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated.",
+      "puissance_invalide": "This power does not exist for this option."
     }
   },
   "selector": {

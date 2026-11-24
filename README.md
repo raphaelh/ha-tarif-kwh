@@ -15,8 +15,10 @@ Intégration Home Assistant (installable par [HACS](https://hacs.xyz)) qui expos
 
 ## Configuration
 
-On choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). On peut ajouter l'intégration plusieurs fois
-(une par option/puissance). Deux réglages facultatifs, modifiables ensuite par **Configurer** :
+On choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). Il y a **une entrée par option** ; la puissance
+se change ensuite dans **Configurer**, sans changer les identifiants des entités (qui ne contiennent pas la puissance :
+`sensor.tarif_bleu_tempo_prix_bleu_hc`, etc., à la langue de Home Assistant près). Trois réglages facultatifs, modifiables
+dans **Configurer** :
 
 | Réglage | Sert à |
 |---|---|

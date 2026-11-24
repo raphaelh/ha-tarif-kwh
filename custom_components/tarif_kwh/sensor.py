@@ -41,8 +41,8 @@ async def async_setup_entry(
 ) -> None:
     coordinator = entry.runtime_data
     option = entry.data[CONF_OPTION]
-    kva = entry.data[CONF_PUISSANCE]
     reglages = {**entry.data, **entry.options}
+    kva = reglages[CONF_PUISSANCE]
 
     entites: list[TarifKwhBase] = [
         PrixPeriode(coordinator, entry, kva, periode)
@@ -68,12 +68,13 @@ class TarifKwhBase(CoordinatorEntity[TarifKwhCoordinator], SensorEntity):
         super().__init__(coordinator)
         self._kva = kva
         self._option = entry.data[CONF_OPTION]
+        reglages = {**entry.data, **entry.options}
         self._attr_unique_id = f"{entry.entry_id}_{cle}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="tarif-kwh (non officiel)",
-            model=f"Tarif Bleu {OPTIONS[self._option]}",
+            model=f"Tarif Bleu {OPTIONS[self._option]} - {reglages[CONF_PUISSANCE]} kVA",
             entry_type=DeviceEntryType.SERVICE,
             configuration_url="https://raphaelh.github.io/tarif-kwh/",
         )
@@ -126,7 +127,10 @@ class Abonnement(TarifKwhBase):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        return {"abonnement_ttc_mensuel": grille.abonnement_ttc_mensuel(self._grille, self._kva)}
+        return {
+            "abonnement_ttc_mensuel": grille.abonnement_ttc_mensuel(self._grille, self._kva),
+            "puissance_kva": self._kva,
+        }
 
 
 class DateEffet(TarifKwhBase):

@@ -23,14 +23,15 @@
       "plages_invalides": "Format attendu : HH:MM-HH:MM, séparées par une virgule."
     },
     "abort": {
-      "already_configured": "Cette option et cette puissance sont déjà configurées."
+      "already_configured": "Cette option est déjà configurée : modifiez sa puissance depuis « Configurer »."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Prix actuel",
+        "title": "Réglages",
         "data": {
+          "puissance": "Puissance souscrite (kVA)",
           "couleur_tempo": "Entité donnant la couleur du jour Tempo",
           "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00",
           "pointe_ejp": "Entité indiquant un jour de pointe EJP"
@@ -41,7 +42,8 @@
       }
     },
     "error": {
-      "plages_invalides": "Format attendu : HH:MM-HH:MM, séparées par une virgule."
+      "plages_invalides": "Format attendu : HH:MM-HH:MM, séparées par une virgule.",
+      "puissance_invalide": "Cette puissance n'existe pas pour cette option."
     }
   },
   "selector": {

@@ -75,10 +75,12 @@ class TarifKwhConfigFlow(ConfigFlow, domain=DOMAIN):
                 erreurs[CONF_PUISSANCE] = "puissance_invalide"
             erreurs.update(_erreurs(user_input))
             if not erreurs:
-                await self.async_set_unique_id(f"{option}_{kva}")
+                # Une entrée par option : la puissance se change ensuite dans « Configurer »
+                # sans changer les identifiants des entités.
+                await self.async_set_unique_id(option)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Tarif Bleu {OPTIONS[option]} {kva} kVA",
+                    title=f"Tarif Bleu {OPTIONS[option]}",
                     data=_nettoyer(user_input),
                 )
         defauts = user_input or {}
@@ -112,18 +114,32 @@ class TarifKwhConfigFlow(ConfigFlow, domain=DOMAIN):
 class TarifKwhOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         erreurs: dict[str, str] = {}
+        option = self.config_entry.data[CONF_OPTION]
         if user_input is not None:
             erreurs = _erreurs(user_input)
+            if user_input[CONF_PUISSANCE] not in PUISSANCES[option]:
+                erreurs[CONF_PUISSANCE] = "puissance_invalide"
             if not erreurs:
                 # Clés toujours présentes : une valeur vidée doit masquer celle de entry.data.
                 return self.async_create_entry(
                     data={
+                        CONF_PUISSANCE: user_input[CONF_PUISSANCE],
                         CONF_COULEUR_TEMPO: user_input.get(CONF_COULEUR_TEMPO) or None,
                         CONF_POINTE_EJP: user_input.get(CONF_POINTE_EJP) or None,
                         CONF_HEURES_CREUSES: user_input.get(CONF_HEURES_CREUSES) or None,
                     }
                 )
         courant = {**self.config_entry.data, **self.config_entry.options, **(user_input or {})}
-        return self.async_show_form(
-            step_id="init", data_schema=vol.Schema(_extras(courant)), errors=erreurs
+        schema = vol.Schema(
+            {
+                vol.Required(CONF_PUISSANCE, default=courant[CONF_PUISSANCE]): SelectSelector(
+                    SelectSelectorConfig(
+                        options=list(PUISSANCES[option]),
+                        mode=SelectSelectorMode.DROPDOWN,
+                        translation_key="puissance",
+                    )
+                ),
+                **_extras(courant),
+            }
         )
+        return self.async_show_form(step_id="init", data_schema=schema, errors=erreurs)

@@ -3,6 +3,7 @@
 import pytest
 from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntryState
+from homeassistant.data_entry_flow import InvalidData
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
 from pytest_homeassistant_custom_component.common import (
@@ -27,8 +28,8 @@ def _custom(recorder_db_url, enable_custom_integrations):  # recorder_db_url ava
 def _entree(**extra):
     return MockConfigEntry(
         domain=DOMAIN,
-        title="Tarif Bleu Tempo 6 kVA",
-        unique_id="tempo_6",
+        title="Tarif Bleu Tempo",
+        unique_id="tempo",
         data={"option": "tempo", "puissance": "6", **extra},
     )
 
@@ -155,12 +156,12 @@ async def test_config_flow(hass):
         r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
     )
     assert r["type"] == "create_entry"
-    assert r["title"] == "Tarif Bleu Heures pleines / creuses 9 kVA"
+    assert r["title"] == "Tarif Bleu Heures pleines / creuses"
     assert r["data"] == {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
 
     r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
-    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "hphc", "puissance": "9"})
-    assert r["type"] == "abort"
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "hphc", "puissance": "12"})
+    assert r["type"] == "abort"  # une entrée par option, quelle que soit la puissance
     assert r["reason"] == "already_configured"
 
 
@@ -169,9 +170,9 @@ async def test_options_flow_vider_un_reglage(hass, aioclient_mock, tempo_json):
     entry = _entree(couleur_tempo="sensor.couleur_tempo")
     await _installer(hass, entry)
     r = await hass.config_entries.options.async_init(entry.entry_id)
-    r = await hass.config_entries.options.async_configure(r["flow_id"], {})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"puissance": "6"})
     assert r["type"] == "create_entry"
-    assert r["data"] == {"couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
+    assert r["data"] == {"puissance": "6", "couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
     await hass.async_block_till_done()
     assert {**entry.data, **entry.options}["couleur_tempo"] is None
 
@@ -183,7 +184,7 @@ async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
     p9 = ejp_json["actuelle"]["puissances"]["9"]["prix_ttc"]
 
     # Sans entité : prix normal, signalé dans les attributs.
-    sans = MockConfigEntry(domain=DOMAIN, title="EJP 9", unique_id="ejp_9", data={"option": "ejp", "puissance": "9"})
+    sans = MockConfigEntry(domain=DOMAIN, title="Tarif Bleu EJP", unique_id="ejp", data={"option": "ejp", "puissance": "9"})
     await _installer(hass, sans)
     etat = _etat(hass, sans, "prix_actuel")
     assert float(etat.state) == p9["normal"]
@@ -192,7 +193,7 @@ async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
     # Avec entité : pointe de 7h à 1h les jours de pointe.
     hass.states.async_set("binary_sensor.ejp_pointe", "on")
     avec = MockConfigEntry(
-        domain=DOMAIN, title="EJP 12", unique_id="ejp_12",
+        domain=DOMAIN, title="Tarif Bleu EJP 2", unique_id="ejp_2",
         data={"option": "ejp", "puissance": "12", "pointe_ejp": "binary_sensor.ejp_pointe"},
     )
     await _installer(hass, avec)
@@ -211,7 +212,7 @@ async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
 
 def _ejp_avec_entite(**extra):
     return MockConfigEntry(
-        domain=DOMAIN, title="EJP 12", unique_id="ejp_12",
+        domain=DOMAIN, title="Tarif Bleu EJP 2", unique_id="ejp_2",
         data={"option": "ejp", "puissance": "12", "pointe_ejp": "binary_sensor.ejp_pointe", **extra},
     )
 
@@ -319,3 +320,36 @@ async def test_ejp_0h_1h_relit_la_veille_dans_l_historique(recorder_mock, hass, 
     entry = _ejp_avec_entite()
     await _installer(hass, entry)
     assert float(_etat(hass, entry, "prix_actuel").state) == p["pointe"]
+
+
+async def test_changer_la_puissance_garde_les_identifiants(hass, aioclient_mock, tempo_json):
+    """La puissance se règle dans « Configurer » ; les entités gardent leur identifiant, sans kVA."""
+    aioclient_mock.get(URL, json=tempo_json)
+    entry = _entree()
+    await _installer(hass, entry)
+    reg = er.async_get(hass)
+    ids = {e.entity_id for e in er.async_entries_for_config_entry(reg, entry.entry_id)}
+    assert ids and not any("kva" in i or "_6_" in i for i in ids)
+    avant = _etat(hass, entry, "abonnement")
+    assert avant.attributes["puissance_kva"] == "6"
+
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"puissance": "18"})
+    assert r["type"] == "create_entry"
+    await hass.async_block_till_done()
+
+    assert {e.entity_id for e in er.async_entries_for_config_entry(reg, entry.entry_id)} == ids
+    apres = _etat(hass, entry, "abonnement")
+    assert apres.entity_id == avant.entity_id
+    assert apres.attributes["puissance_kva"] == "18"
+    assert float(apres.state) == tempo_json["actuelle"]["puissances"]["18"]["abonnement_ttc"]
+
+
+async def test_options_puissance_invalide_pour_l_option(hass, aioclient_mock, ejp_json):
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    entry = MockConfigEntry(domain=DOMAIN, title="Tarif Bleu EJP", unique_id="ejp", data={"option": "ejp", "puissance": "9"})
+    await _installer(hass, entry)
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    # La liste déroulante ne propose que les puissances de l'option : le reste est refusé.
+    with pytest.raises(InvalidData):
+        await hass.config_entries.options.async_configure(r["flow_id"], {"puissance": "6"})
