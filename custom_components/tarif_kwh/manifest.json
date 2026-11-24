@@ -1,0 +1,12 @@
+{
+  "domain": "tarif_kwh",
+  "name": "Tarif kWh (Tarif Bleu EDF)",
+  "codeowners": ["@raphaelh"],
+  "config_flow": true,
+  "documentation": "https://github.com/raphaelh/ha-tarif-kwh",
+  "integration_type": "service",
+  "iot_class": "cloud_polling",
+  "issue_tracker": "https://github.com/raphaelh/ha-tarif-kwh/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}

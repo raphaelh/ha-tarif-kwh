@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tarif Bleu EDF",
+        "description": "Choisissez l'option et la puissance de votre contrat. Les prix viennent de raphaelh.github.io/tarif-kwh (projet non officiel).",
+        "data": {
+          "option": "Option tarifaire",
+          "puissance": "Puissance souscrite (kVA)",
+          "couleur_tempo": "Entité donnant la couleur du jour Tempo (facultatif)",
+          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00 (facultatif)",
+          "pointe_ejp": "Entité indiquant un jour de pointe EJP (facultatif)"
+        },
+        "data_description": {
+          "couleur_tempo": "Pour le capteur « Prix actuel » en Tempo (états bleu / blanc / rouge, ou blue / white / red).",
+          "heures_creuses": "Pour le capteur « Prix actuel » en heures pleines/creuses. Plusieurs plages possibles, séparées par une virgule.",
+          "pointe_ejp": "Pour le capteur « Prix actuel » en EJP (états on/off, ou pointe/normal). Sans elle, le prix « normal » est utilisé tout le temps."
+        }
+      }
+    },
+    "error": {
+      "puissance_invalide": "Cette puissance n'existe pas pour cette option.",
+      "plages_invalides": "Format attendu : HH:MM-HH:MM, séparées par une virgule."
+    },
+    "abort": {
+      "already_configured": "Cette option et cette puissance sont déjà configurées."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Prix actuel",
+        "data": {
+          "couleur_tempo": "Entité donnant la couleur du jour Tempo",
+          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00",
+          "pointe_ejp": "Entité indiquant un jour de pointe EJP"
+        },
+        "data_description": {
+          "pointe_ejp": "Pour le capteur « Prix actuel » en EJP (états on/off, ou pointe/normal). Sans elle, le prix « normal » est utilisé tout le temps."
+        }
+      }
+    },
+    "error": {
+      "plages_invalides": "Format attendu : HH:MM-HH:MM, séparées par une virgule."
+    }
+  },
+  "selector": {
+    "option": {
+      "options": {
+        "base": "Base",
+        "hphc": "Heures pleines / creuses",
+        "tempo": "Tempo",
+        "ejp": "EJP"
+      }
+    },
+    "puissance": {
+      "options": {
+        "3": "3 kVA",
+        "6": "6 kVA",
+        "9": "9 kVA",
+        "12": "12 kVA",
+        "15": "15 kVA",
+        "18": "18 kVA",
+        "24": "24 kVA",
+        "30": "30 kVA",
+        "36": "36 kVA"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "prix": {
+        "name": "Prix {periode}"
+      },
+      "abonnement": {
+        "name": "Abonnement"
+      },
+      "date_effet": {
+        "name": "Date d'effet de la grille"
+      },
+      "prix_actuel": {
+        "name": "Prix actuel"
+      }
+    }
+  }
+}

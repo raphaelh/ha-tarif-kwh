@@ -1,0 +1,86 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "EDF Tarif Bleu",
+        "description": "Pick your contract's option and power. Prices come from raphaelh.github.io/tarif-kwh (unofficial project).",
+        "data": {
+          "option": "Tariff option",
+          "puissance": "Subscribed power (kVA)",
+          "couleur_tempo": "Entity giving today's Tempo colour (optional)",
+          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00 (optional)",
+          "pointe_ejp": "Entity telling whether today is an EJP peak day (optional)"
+        },
+        "data_description": {
+          "couleur_tempo": "For the \"Current price\" sensor with Tempo (states bleu/blanc/rouge or blue/white/red).",
+          "heures_creuses": "For the \"Current price\" sensor with peak/off-peak. Several ranges allowed, comma separated.",
+          "pointe_ejp": "For the \"Current price\" sensor with EJP (states on/off, or pointe/normal). Without it, the \"normal\" price is always used."
+        }
+      }
+    },
+    "error": {
+      "puissance_invalide": "This power does not exist for this option.",
+      "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated."
+    },
+    "abort": {
+      "already_configured": "This option and power are already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Current price",
+        "data": {
+          "couleur_tempo": "Entity giving today's Tempo colour",
+          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00",
+          "pointe_ejp": "Entity telling whether today is an EJP peak day"
+        },
+        "data_description": {
+          "pointe_ejp": "For the \"Current price\" sensor with EJP (states on/off, or pointe/normal). Without it, the \"normal\" price is always used."
+        }
+      }
+    },
+    "error": {
+      "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated."
+    }
+  },
+  "selector": {
+    "option": {
+      "options": {
+        "base": "Base",
+        "hphc": "Peak / off-peak",
+        "tempo": "Tempo",
+        "ejp": "EJP"
+      }
+    },
+    "puissance": {
+      "options": {
+        "3": "3 kVA",
+        "6": "6 kVA",
+        "9": "9 kVA",
+        "12": "12 kVA",
+        "15": "15 kVA",
+        "18": "18 kVA",
+        "24": "24 kVA",
+        "30": "30 kVA",
+        "36": "36 kVA"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "prix": {
+        "name": "Price {periode}"
+      },
+      "abonnement": {
+        "name": "Subscription"
+      },
+      "date_effet": {
+        "name": "Tariff effective date"
+      },
+      "prix_actuel": {
+        "name": "Current price"
+      }
+    }
+  }
+}

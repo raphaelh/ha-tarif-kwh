@@ -1,0 +1,200 @@
+"""Tests avec Home Assistant (pytest-homeassistant-custom-component)."""
+
+import pytest
+from aiohttp import ClientError
+from homeassistant.config_entries import ConfigEntryState
+from homeassistant.helpers import entity_registry as er
+from homeassistant.setup import async_setup_component
+from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+
+from custom_components.tarif_kwh.const import DOMAIN
+
+URL = "https://raphaelh.github.io/tarif-kwh/tempo.json"
+
+
+@pytest.fixture(autouse=True)
+def _custom(enable_custom_integrations):
+    yield
+
+
+def _entree(**extra):
+    return MockConfigEntry(
+        domain=DOMAIN,
+        title="Tarif Bleu Tempo 6 kVA",
+        unique_id="tempo_6",
+        data={"option": "tempo", "puissance": "6", **extra},
+    )
+
+
+def _etat(hass, entry, cle):
+    reg = er.async_get(hass)
+    entity_id = reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_{cle}")
+    assert entity_id, f"entité {cle} absente"
+    return hass.states.get(entity_id)
+
+
+async def _installer(hass, entry):
+    entry.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_capteurs_prix(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json, headers={"ETag": '"v1"'})
+    entry = _entree()
+    await _installer(hass, entry)
+    p6 = tempo_json["actuelle"]["puissances"]["6"]
+    assert float(_etat(hass, entry, "prix_bleu_hc").state) == p6["prix_ttc"]["bleu_hc"]
+    assert float(_etat(hass, entry, "prix_rouge_hp").state) == p6["prix_ttc"]["rouge_hp"]
+    assert float(_etat(hass, entry, "abonnement").state) == p6["abonnement_ttc"]
+    assert len(aioclient_mock.mock_calls) == 1
+
+
+async def test_prix_actuel_tempo(hass, aioclient_mock, tempo_json, freezer):
+    await hass.config.async_set_time_zone("Europe/Paris")
+    freezer.move_to("2026-11-23 11:00:00+00:00")  # 12h00 à Paris : heures pleines
+    aioclient_mock.get(URL, json=tempo_json)
+    hass.states.async_set("sensor.couleur_tempo", "Blanc")
+    entry = _entree(couleur_tempo="sensor.couleur_tempo")
+    await _installer(hass, entry)
+    p6 = tempo_json["actuelle"]["puissances"]["6"]["prix_ttc"]
+    etat = _etat(hass, entry, "prix_actuel")
+    assert float(etat.state) == p6["blanc_hp"]
+    assert etat.attributes["periode"] == "blanc_hp"
+
+    hass.states.async_set("sensor.couleur_tempo", "rouge")
+    await hass.async_block_till_done()
+    assert float(_etat(hass, entry, "prix_actuel").state) == p6["rouge_hp"]
+
+    freezer.move_to("2026-11-23 22:30:00+00:00")  # 23h30 à Paris : heures creuses
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert float(_etat(hass, entry, "prix_actuel").state) == p6["rouge_hc"]
+
+    hass.states.async_set("sensor.couleur_tempo", "unavailable")
+    await hass.async_block_till_done()
+    assert _etat(hass, entry, "prix_actuel").state == "unknown"
+
+
+async def test_pas_de_prix_actuel_sans_couleur(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json)
+    entry = _entree()
+    await _installer(hass, entry)
+    reg = er.async_get(hass)
+    assert reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_prix_actuel") is None
+
+
+async def test_lecture_conditionnelle_et_repli(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json, headers={"ETag": '"v1"'})
+    entry = _entree()
+    await _installer(hass, entry)
+    coordinator = entry.runtime_data
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(URL, status=304)
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success
+    assert aioclient_mock.mock_calls[-1][3]["If-None-Match"] == '"v1"'
+    assert coordinator.data == tempo_json
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(URL, exc=ClientError("coupé"))
+    await coordinator.async_refresh()
+    assert coordinator.last_update_success  # dernière version conservée
+    assert coordinator.data == tempo_json
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(URL, json={"schema_version": 99})
+    await coordinator.async_refresh()
+    assert coordinator.data == tempo_json
+
+
+async def test_echec_sans_cache_reessaie(hass, aioclient_mock):
+    aioclient_mock.get(URL, exc=ClientError("coupé"))
+    entry = _entree()
+    entry.add_to_hass(hass)
+    assert not await hass.config_entries.async_setup(entry.entry_id)
+    assert entry.state is ConfigEntryState.SETUP_RETRY
+
+
+async def test_demarrage_hors_ligne_avec_cache(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json, headers={"ETag": '"v1"'})
+    entry = _entree()
+    await _installer(hass, entry)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(URL, exc=ClientError("coupé"))
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert entry.state is ConfigEntryState.LOADED
+    assert _etat(hass, entry, "prix_bleu_hc").state != "unavailable"
+
+
+async def test_config_flow(hass):
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    assert r["type"] == "form"
+
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "ejp", "puissance": "6"})
+    assert r["errors"] == {"puissance": "puissance_invalide"}
+
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22h-6h"}
+    )
+    assert r["errors"] == {"heures_creuses": "plages_invalides"}
+
+    r = await hass.config_entries.flow.async_configure(
+        r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
+    )
+    assert r["type"] == "create_entry"
+    assert r["title"] == "Tarif Bleu Heures pleines / creuses 9 kVA"
+    assert r["data"] == {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
+
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "hphc", "puissance": "9"})
+    assert r["type"] == "abort"
+    assert r["reason"] == "already_configured"
+
+
+async def test_options_flow_vider_un_reglage(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json)
+    entry = _entree(couleur_tempo="sensor.couleur_tempo")
+    await _installer(hass, entry)
+    r = await hass.config_entries.options.async_init(entry.entry_id)
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {})
+    assert r["type"] == "create_entry"
+    assert r["data"] == {"couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
+    await hass.async_block_till_done()
+    assert {**entry.data, **entry.options}["couleur_tempo"] is None
+
+
+async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
+    await hass.config.async_set_time_zone("Europe/Paris")
+    freezer.move_to("2026-11-23 11:00:00+00:00")  # 12h00 à Paris
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    p9 = ejp_json["actuelle"]["puissances"]["9"]["prix_ttc"]
+
+    # Sans entité : prix normal, signalé dans les attributs.
+    sans = MockConfigEntry(domain=DOMAIN, title="EJP 9", unique_id="ejp_9", data={"option": "ejp", "puissance": "9"})
+    await _installer(hass, sans)
+    etat = _etat(hass, sans, "prix_actuel")
+    assert float(etat.state) == p9["normal"]
+    assert etat.attributes["jours_de_pointe_suivis"] is False
+
+    # Avec entité : pointe de 7h à 1h les jours de pointe.
+    hass.states.async_set("binary_sensor.ejp_pointe", "on")
+    avec = MockConfigEntry(
+        domain=DOMAIN, title="EJP 12", unique_id="ejp_12",
+        data={"option": "ejp", "puissance": "12", "pointe_ejp": "binary_sensor.ejp_pointe"},
+    )
+    await _installer(hass, avec)
+    p12 = ejp_json["actuelle"]["puissances"]["12"]["prix_ttc"]
+    assert float(_etat(hass, avec, "prix_actuel").state) == p12["pointe"]
+
+    hass.states.async_set("binary_sensor.ejp_pointe", "off")
+    await hass.async_block_till_done()
+    assert float(_etat(hass, avec, "prix_actuel").state) == p12["normal"]
+
+    hass.states.async_set("binary_sensor.ejp_pointe", "unavailable")
+    await hass.async_block_till_done()
+    assert _etat(hass, avec, "prix_actuel").state == "unknown"
