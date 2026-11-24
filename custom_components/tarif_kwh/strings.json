@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tarif Bleu EDF",
+        "title": "Tarif kWh",
         "description": "Choisissez l'option et la puissance de votre contrat. Les prix viennent de raphaelh.github.io/tarif-kwh (projet non officiel).",
         "data": {
           "option": "Option tarifaire",
