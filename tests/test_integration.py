@@ -147,14 +147,17 @@ async def test_config_flow(hass):
     r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "ejp", "puissance": "6"})
     assert r["errors"] == {"puissance": "puissance_invalide"}
 
-    r = await hass.config_entries.flow.async_configure(
-        r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22h-6h"}
-    )
+    # Premier écran : option et puissance seulement.
+    assert set(r["data_schema"].schema) == {"option", "puissance"}
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "hphc", "puissance": "9"})
+    # Second écran : le seul champ utile pour HP/HC.
+    assert r["type"] == "form" and r["step_id"] == "hphc"
+    assert set(r["data_schema"].schema) == {"heures_creuses"}
+
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"heures_creuses": "22h-6h"})
     assert r["errors"] == {"heures_creuses": "plages_invalides"}
 
-    r = await hass.config_entries.flow.async_configure(
-        r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
-    )
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"heures_creuses": "22:00-06:00"})
     assert r["type"] == "create_entry"
     assert r["title"] == "Tarif kWh"
     assert r["data"] == {
@@ -168,12 +171,40 @@ async def test_config_flow(hass):
     assert r["reason"] == "single_instance_allowed"
 
 
+async def test_config_flow_base_un_seul_ecran(hass):
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": "base", "puissance": "6"})
+    assert r["type"] == "create_entry"
+    assert r["data"] == {"option": "base", "puissance": "6", "couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
+
+
+@pytest.mark.parametrize(
+    ("option", "puissance", "champ", "valeur"),
+    [("tempo", "18", "couleur_tempo", "sensor.couleur_tempo"), ("ejp", "9", "pointe_ejp", "binary_sensor.ejp")],
+)
+async def test_config_flow_second_ecran(hass, option, puissance, champ, valeur):
+    r = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {"option": option, "puissance": puissance})
+    assert r["step_id"] == option
+    assert set(r["data_schema"].schema) == {champ}
+    r = await hass.config_entries.flow.async_configure(r["flow_id"], {champ: valeur})
+    assert r["type"] == "create_entry"
+    attendu = {"option": option, "puissance": puissance, "couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
+    attendu[champ] = valeur
+    assert r["data"] == attendu
+
+
 async def test_options_flow_vider_un_reglage(hass, aioclient_mock, tempo_json):
     aioclient_mock.get(URL, json=tempo_json)
     entry = _entree(couleur_tempo="sensor.couleur_tempo")
     await _installer(hass, entry)
     r = await hass.config_entries.options.async_init(entry.entry_id)
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"option": "tempo", "puissance": "6"})
+    assert r["step_id"] == "tempo"
+    # La valeur actuelle est proposée ; l'utilisateur la vide.
+    cle = next(iter(r["data_schema"].schema))
+    assert cle.description == {"suggested_value": "sensor.couleur_tempo"}
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {})
     assert r["type"] == "create_entry"
     assert r["data"] == {"option": "tempo", "puissance": "6", "couleur_tempo": None, "pointe_ejp": None, "heures_creuses": None}
     await hass.async_block_till_done()
@@ -339,6 +370,7 @@ async def test_changer_la_puissance_garde_les_identifiants(hass, aioclient_mock,
 
     r = await hass.config_entries.options.async_init(entry.entry_id)
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"option": "tempo", "puissance": "18"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {})
     assert r["type"] == "create_entry"
     await hass.async_block_till_done()
 
@@ -370,10 +402,11 @@ async def test_changer_d_option_garde_prix_actuel_et_retire_l_ancien(hass, aiocl
     assert reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_prix_bleu_hc")
 
     r = await hass.config_entries.options.async_init(entry.entry_id)
-    r = await hass.config_entries.options.async_configure(
-        r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
-    )
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"option": "hphc", "puissance": "9"})
+    r = await hass.config_entries.options.async_configure(r["flow_id"], {"heures_creuses": "22:00-06:00"})
     assert r["type"] == "create_entry"
+    # La couleur Tempo, inutile en HP/HC, est effacée.
+    assert r["data"]["couleur_tempo"] is None
     await hass.async_block_till_done()
 
     assert reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_prix_bleu_hc") is None

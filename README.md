@@ -18,13 +18,14 @@ Intégration Home Assistant (installable par [HACS](https://hacs.xyz)) qui expos
 Un seul **contrat** : on choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). Les deux se changent
 ensuite dans **Configurer** (changement d'option ou de puissance du contrat). Les identifiants des entités ne contiennent
 ni l'option ni la puissance : le capteur *Prix actuel* garde le sien quand l'option change ; les capteurs par période de
-l'ancienne option sont supprimés et ceux de la nouvelle créés. Trois réglages facultatifs, eux aussi dans **Configurer** :
+l'ancienne option sont supprimés et ceux de la nouvelle créés. Un second écran propose ensuite le seul réglage facultatif
+utile pour l'option choisie (aucun pour Base) :
 
-| Réglage | Sert à |
+| Réglage (option) | Sert à |
 |---|---|
-| Entité de la couleur Tempo | Calculer le capteur *Prix actuel* en Tempo. Les états `bleu`/`blanc`/`rouge` (ou `blue`/`white`/`red`) sont reconnus ; l'entité doit donner la couleur du **jour Tempo en cours** (qui change à 6 h). |
-| Entité « jour de pointe EJP » | Suivre les 22 jours de pointe en EJP. États `on`/`off` ou `pointe`/`normal`. L'entité doit indiquer si le **jour calendaire en cours** est un jour de pointe, et ne basculer qu'à minuit ou après (pas dès l'annonce de la veille). Le prix « pointe » s'applique de 7 h à 1 h : la tranche 0 h-1 h suit le jour de pointe **de la veille**. Sans entité, le prix « normal » est utilisé tout le temps (attribut `jours_de_pointe_suivis: false`). |
-| Heures creuses | Calculer le capteur *Prix actuel* en HP/HC, ex. `22:00-06:00` ou `01:30-07:30,12:30-14:30`. Elles sont propres à votre compteur (Enedis) et ne sont pas publiées. |
+| Entité de la couleur Tempo (Tempo) | Calculer le capteur *Prix actuel* en Tempo. Les états `bleu`/`blanc`/`rouge` (ou `blue`/`white`/`red`) sont reconnus ; l'entité doit donner la couleur du **jour Tempo en cours** (qui change à 6 h). |
+| Entité « jour de pointe EJP » (EJP) | Suivre les 22 jours de pointe en EJP. États `on`/`off` ou `pointe`/`normal`. L'entité doit indiquer si le **jour calendaire en cours** est un jour de pointe, et ne basculer qu'à minuit ou après (pas dès l'annonce de la veille). Le prix « pointe » s'applique de 7 h à 1 h : la tranche 0 h-1 h suit le jour de pointe **de la veille**. Sans entité, le prix « normal » est utilisé tout le temps (attribut `jours_de_pointe_suivis: false`). |
+| Heures creuses (HP/HC) | Calculer le capteur *Prix actuel* en HP/HC, ex. `22:00-06:00` ou `01:30-07:30,12:30-14:30`. Elles sont propres à votre compteur (Enedis) et ne sont pas publiées. |
 
 ## Capteurs
 

@@ -6,15 +6,37 @@
         "description": "Pick your contract's option and power. Prices come from raphaelh.github.io/tarif-kwh (unofficial project).",
         "data": {
           "option": "Tariff option",
-          "puissance": "Subscribed power (kVA)",
-          "couleur_tempo": "Entity giving today's Tempo colour (optional)",
-          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00 (optional)",
+          "puissance": "Subscribed power (kVA)"
+        }
+      },
+      "tempo": {
+        "title": "Tempo day colour",
+        "description": "For the \"Current price\" sensor. Tempo off-peak hours (22:00-06:00) are already known.",
+        "data": {
+          "couleur_tempo": "Entity giving today's Tempo colour (optional)"
+        },
+        "data_description": {
+          "couleur_tempo": "States bleu/blanc/rouge or blue/white/red. Without it, there is no \"Current price\" sensor."
+        }
+      },
+      "ejp": {
+        "title": "EJP peak days",
+        "description": "For the \"Current price\" sensor.",
+        "data": {
           "pointe_ejp": "Entity telling whether today is an EJP peak day (optional)"
         },
         "data_description": {
-          "couleur_tempo": "For the \"Current price\" sensor with Tempo (states bleu/blanc/rouge or blue/white/red).",
-          "heures_creuses": "For the \"Current price\" sensor with peak/off-peak. Several ranges allowed, comma separated.",
-          "pointe_ejp": "For the \"Current price\" sensor with EJP (states on/off, or pointe/normal). Without it, the \"normal\" price is always used."
+          "pointe_ejp": "States on/off, or pointe/normal. Without it, the \"normal\" price is always used."
+        }
+      },
+      "hphc": {
+        "title": "Off-peak hours",
+        "description": "For the \"Current price\" sensor.",
+        "data": {
+          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00 (optional)"
+        },
+        "data_description": {
+          "heures_creuses": "They are on your bill. Several ranges allowed, comma separated. Without them, there is no \"Current price\" sensor."
         }
       }
     },
@@ -31,17 +53,40 @@
     "step": {
       "init": {
         "title": "My contract",
+        "description": "Pick your contract's option and power. Prices come from raphaelh.github.io/tarif-kwh (unofficial project).",
         "data": {
           "option": "Tariff option",
-          "puissance": "Subscribed power (kVA)",
-          "couleur_tempo": "Entity giving today's Tempo colour",
-          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00",
-          "pointe_ejp": "Entity telling whether today is an EJP peak day"
+          "puissance": "Subscribed power (kVA)"
+        }
+      },
+      "tempo": {
+        "title": "Tempo day colour",
+        "description": "For the \"Current price\" sensor. Tempo off-peak hours (22:00-06:00) are already known.",
+        "data": {
+          "couleur_tempo": "Entity giving today's Tempo colour (optional)"
         },
         "data_description": {
-          "couleur_tempo": "For the \"Current price\" sensor with Tempo (states bleu/blanc/rouge or blue/white/red).",
-          "heures_creuses": "For the \"Current price\" sensor with peak/off-peak. Several ranges allowed, comma separated.",
-          "pointe_ejp": "For the \"Current price\" sensor with EJP (states on/off, or pointe/normal). Without it, the \"normal\" price is always used."
+          "couleur_tempo": "States bleu/blanc/rouge or blue/white/red. Without it, there is no \"Current price\" sensor."
+        }
+      },
+      "ejp": {
+        "title": "EJP peak days",
+        "description": "For the \"Current price\" sensor.",
+        "data": {
+          "pointe_ejp": "Entity telling whether today is an EJP peak day (optional)"
+        },
+        "data_description": {
+          "pointe_ejp": "States on/off, or pointe/normal. Without it, the \"normal\" price is always used."
+        }
+      },
+      "hphc": {
+        "title": "Off-peak hours",
+        "description": "For the \"Current price\" sensor.",
+        "data": {
+          "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00 (optional)"
+        },
+        "data_description": {
+          "heures_creuses": "They are on your bill. Several ranges allowed, comma separated. Without them, there is no \"Current price\" sensor."
         }
       }
     },

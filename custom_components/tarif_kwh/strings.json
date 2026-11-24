@@ -6,15 +6,37 @@
         "description": "Choisissez l'option et la puissance de votre contrat. Les prix viennent de raphaelh.github.io/tarif-kwh (projet non officiel).",
         "data": {
           "option": "Option tarifaire",
-          "puissance": "Puissance souscrite (kVA)",
-          "couleur_tempo": "Entité donnant la couleur du jour Tempo (facultatif)",
-          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00 (facultatif)",
+          "puissance": "Puissance souscrite (kVA)"
+        }
+      },
+      "tempo": {
+        "title": "Couleur du jour Tempo",
+        "description": "Pour le capteur « Prix actuel ». Les heures creuses Tempo (22 h – 6 h) sont déjà connues.",
+        "data": {
+          "couleur_tempo": "Entité donnant la couleur du jour Tempo (facultatif)"
+        },
+        "data_description": {
+          "couleur_tempo": "États bleu / blanc / rouge, ou blue / white / red. Sans elle, pas de capteur « Prix actuel »."
+        }
+      },
+      "ejp": {
+        "title": "Jours de pointe EJP",
+        "description": "Pour le capteur « Prix actuel ».",
+        "data": {
           "pointe_ejp": "Entité indiquant un jour de pointe EJP (facultatif)"
         },
         "data_description": {
-          "couleur_tempo": "Pour le capteur « Prix actuel » en Tempo (états bleu / blanc / rouge, ou blue / white / red).",
-          "heures_creuses": "Pour le capteur « Prix actuel » en heures pleines/creuses. Plusieurs plages possibles, séparées par une virgule.",
-          "pointe_ejp": "Pour le capteur « Prix actuel » en EJP (états on/off, ou pointe/normal). Sans elle, le prix « normal » est utilisé tout le temps."
+          "pointe_ejp": "États on/off, ou pointe/normal. Sans elle, le prix « normal » est utilisé tout le temps."
+        }
+      },
+      "hphc": {
+        "title": "Heures creuses",
+        "description": "Pour le capteur « Prix actuel ».",
+        "data": {
+          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00 (facultatif)"
+        },
+        "data_description": {
+          "heures_creuses": "Elles figurent sur votre facture. Plusieurs plages possibles, séparées par une virgule. Sans elles, pas de capteur « Prix actuel »."
         }
       }
     },
@@ -31,17 +53,40 @@
     "step": {
       "init": {
         "title": "Mon contrat",
+        "description": "Choisissez l'option et la puissance de votre contrat. Les prix viennent de raphaelh.github.io/tarif-kwh (projet non officiel).",
         "data": {
           "option": "Option tarifaire",
-          "puissance": "Puissance souscrite (kVA)",
-          "couleur_tempo": "Entité donnant la couleur du jour Tempo",
-          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00",
-          "pointe_ejp": "Entité indiquant un jour de pointe EJP"
+          "puissance": "Puissance souscrite (kVA)"
+        }
+      },
+      "tempo": {
+        "title": "Couleur du jour Tempo",
+        "description": "Pour le capteur « Prix actuel ». Les heures creuses Tempo (22 h – 6 h) sont déjà connues.",
+        "data": {
+          "couleur_tempo": "Entité donnant la couleur du jour Tempo (facultatif)"
         },
         "data_description": {
-          "couleur_tempo": "Pour le capteur « Prix actuel » en Tempo (états bleu / blanc / rouge, ou blue / white / red).",
-          "heures_creuses": "Pour le capteur « Prix actuel » en heures pleines/creuses. Plusieurs plages possibles, séparées par une virgule.",
-          "pointe_ejp": "Pour le capteur « Prix actuel » en EJP (états on/off, ou pointe/normal). Sans elle, le prix « normal » est utilisé tout le temps."
+          "couleur_tempo": "États bleu / blanc / rouge, ou blue / white / red. Sans elle, pas de capteur « Prix actuel »."
+        }
+      },
+      "ejp": {
+        "title": "Jours de pointe EJP",
+        "description": "Pour le capteur « Prix actuel ».",
+        "data": {
+          "pointe_ejp": "Entité indiquant un jour de pointe EJP (facultatif)"
+        },
+        "data_description": {
+          "pointe_ejp": "États on/off, ou pointe/normal. Sans elle, le prix « normal » est utilisé tout le temps."
+        }
+      },
+      "hphc": {
+        "title": "Heures creuses",
+        "description": "Pour le capteur « Prix actuel ».",
+        "data": {
+          "heures_creuses": "Heures creuses de votre compteur, ex. 22:00-06:00 (facultatif)"
+        },
+        "data_description": {
+          "heures_creuses": "Elles figurent sur votre facture. Plusieurs plages possibles, séparées par une virgule. Sans elles, pas de capteur « Prix actuel »."
         }
       }
     },
