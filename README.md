@@ -1,3 +1,8 @@
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="custom_components/tarif_kwh/brand/dark_logo@2x.png">
+  <img src="custom_components/tarif_kwh/brand/logo@2x.png" alt="Tarif kWh" height="64">
+</picture>
+
 # Tarif kWh pour Home Assistant
 
 Intégration Home Assistant (installable par [HACS](https://hacs.xyz)) qui expose le **prix TTC du kWh du Tarif Bleu EDF**
