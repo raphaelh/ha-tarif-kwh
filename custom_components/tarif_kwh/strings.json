@@ -133,5 +133,15 @@
         "name": "Prix actuel"
       }
     }
+  },
+  "issues": {
+    "donnees_anciennes": {
+      "title": "Prix du kWh peut-être plus à jour",
+      "description": "La source des prix ({url}) n'a plus été vérifiée depuis le {date} ({jours} jours). Les capteurs gardent les prix de la dernière lecture : ils sont faux si les tarifs ont changé depuis (en général au 1er février et au 1er août). L'alerte disparaît d'elle-même dès que la source est de nouveau à jour."
+    },
+    "publication_bloquee": {
+      "title": "Publication des prix bloquée ({option})",
+      "description": "La source des prix a bloqué la publication de l'option « {option} » : une nouvelle grille n'a pas passé ses contrôles. Les capteurs gardent la dernière grille validée, qui peut ne plus être en vigueur. Détails dans {url}. L'alerte disparaît d'elle-même une fois la publication rétablie."
+    }
   }
 }

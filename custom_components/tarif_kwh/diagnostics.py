@@ -36,6 +36,11 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: TarifKw
             "derniere_erreur": str(coordinator.last_exception) if coordinator.last_exception else None,
             "etag": coordinator._etag,
         },
+        "source": {
+            "derniere_verification": (etat := coordinator.etat or {}).get("derniere_verification"),
+            "publication": coordinator.publication,
+            "sources_en_echec": etat.get("sources_en_echec"),
+        },
         "donnees": {
             "schema_version": data.get("schema_version"),
             "option": data.get("option"),

@@ -5,13 +5,12 @@ from __future__ import annotations
 import logging
 from datetime import date, datetime, time, timedelta
 from functools import partial
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
-from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
 from homeassistant.helpers.restore_state import ExtraStoredData, RestoredExtraData, RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -32,6 +31,9 @@ from .const import (
     reglages,
 )
 from .coordinator import TarifKwhCoordinator
+
+if TYPE_CHECKING:  # annotation seule : ce nom est absent de HA 2025.1 (version minimale)
+    from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 _LOGGER = logging.getLogger(__name__)
 

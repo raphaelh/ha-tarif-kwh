@@ -18,11 +18,48 @@ from pytest_homeassistant_custom_component.components.recorder.common import asy
 from custom_components.tarif_kwh.const import DOMAIN
 
 URL = "https://raphaelh.github.io/tarif-kwh/tempo.json"
+URL_ETAT = "https://raphaelh.github.io/tarif-kwh/etat.json"
 
 
 @pytest.fixture(autouse=True)
 def _custom(recorder_db_url, enable_custom_integrations):  # recorder_db_url avant hass
     yield
+
+
+@pytest.fixture(autouse=True)
+def etat_site(aioclient_mock):
+    """etat.json du site, servi à chaque lecture ; par défaut vérifié à l'instant et publication « ok ».
+
+    Un test le modifie (dict) pour simuler une source ancienne ou bloquée, ou met « exc » pour une panne.
+    Il reste enregistré après aioclient_mock.clear_requests().
+    """
+    from homeassistant.util import dt as dt_util
+    from pytest_homeassistant_custom_component.test_util.aiohttp import AiohttpClientMockResponse
+
+    etat: dict = {"options": {"tempo": {"publication": "ok"}}}
+
+    async def repondre(method, url, data):
+        if "exc" in etat:
+            return AiohttpClientMockResponse(method, url, exc=etat["exc"])
+        corps = {"derniere_verification": dt_util.utcnow().isoformat(), **etat}
+        return AiohttpClientMockResponse(method, url, json=corps)
+
+    def enregistrer():
+        aioclient_mock.get(URL_ETAT, side_effect=repondre)
+
+    vider = aioclient_mock.clear_requests
+
+    def clear_requests():
+        vider()
+        enregistrer()
+
+    aioclient_mock.clear_requests = clear_requests
+    enregistrer()
+    return etat
+
+
+def _appels(aioclient_mock, url=URL):
+    return [c for c in aioclient_mock.mock_calls if str(c[1]) == url]
 
 
 def _entree(**extra):
@@ -55,7 +92,7 @@ async def test_capteurs_prix(hass, aioclient_mock, tempo_json):
     assert float(_etat(hass, entry, "prix_bleu_hc").state) == p6["prix_ttc"]["bleu_hc"]
     assert float(_etat(hass, entry, "prix_rouge_hp").state) == p6["prix_ttc"]["rouge_hp"]
     assert float(_etat(hass, entry, "abonnement").state) == p6["abonnement_ttc"]
-    assert len(aioclient_mock.mock_calls) == 1
+    assert len(_appels(aioclient_mock)) == 1
 
 
 async def test_prix_actuel_tempo(hass, aioclient_mock, tempo_json, freezer):
@@ -103,7 +140,7 @@ async def test_lecture_conditionnelle_et_repli(hass, aioclient_mock, tempo_json)
     aioclient_mock.get(URL, status=304)
     await coordinator.async_refresh()
     assert coordinator.last_update_success
-    assert aioclient_mock.mock_calls[-1][3]["If-None-Match"] == '"v1"'
+    assert _appels(aioclient_mock)[-1][3]["If-None-Match"] == '"v1"'
     assert coordinator.data == tempo_json
 
     aioclient_mock.clear_requests()
@@ -427,3 +464,69 @@ async def test_diagnostics(hass, aioclient_mock, tempo_json):
     assert diag["donnees"]["actuelle"]["date_effet"] == tempo_json["actuelle"]["date_effet"]
     assert "18" in diag["donnees"]["actuelle"]["puissances"]
     assert diag["donnees"]["prochaine"] is None
+    assert diag["source"]["publication"] == "ok"
+    assert diag["source"]["derniere_verification"]
+
+
+def _issues(hass):
+    from homeassistant.helpers import issue_registry as ir
+
+    return {i for (d, i) in ir.async_get(hass).issues if d == DOMAIN}
+
+
+async def test_pas_d_alerte_quand_la_source_est_a_jour(hass, aioclient_mock, tempo_json):
+    aioclient_mock.get(URL, json=tempo_json)
+    await _installer(hass, _entree())
+    assert _issues(hass) == set()
+
+
+async def test_alerte_source_plus_verifiee_puis_retablie(hass, aioclient_mock, tempo_json, etat_site, freezer):
+    freezer.move_to("2026-11-24 10:00:00+00:00")
+    aioclient_mock.get(URL, json=tempo_json, headers={"ETag": '"v1"'})
+    entry = _entree()
+    await _installer(hass, entry)
+    coordinator = entry.runtime_data
+
+    # La source ne répond plus : etat.json garde sa dernière date, qui vieillit.
+    etat_site["exc"] = ClientError("coupé")
+    freezer.move_to("2026-11-30 10:00:00+00:00")  # 6 jours : pas encore d'alerte
+    await coordinator.async_refresh()
+    assert _issues(hass) == set()
+    freezer.move_to("2026-12-02 10:00:00+00:00")  # 8 jours
+    await coordinator.async_refresh()
+    assert _issues(hass) == {"donnees_anciennes"}
+    assert coordinator.data == tempo_json  # les prix restent ceux de la dernière lecture
+
+    # Source de nouveau vérifiée : l'alerte disparaît.
+    del etat_site["exc"]
+    await coordinator.async_refresh()
+    assert _issues(hass) == set()
+
+
+async def test_alerte_source_ancienne_retrouvee_apres_redemarrage(hass, aioclient_mock, tempo_json, etat_site, freezer):
+    """La date de dernière vérification est gardée dans le Store : hors ligne au démarrage, l'alerte reste juste."""
+    freezer.move_to("2026-11-24 10:00:00+00:00")
+    aioclient_mock.get(URL, json=tempo_json)
+    entry = _entree()
+    await _installer(hass, entry)
+    assert await hass.config_entries.async_unload(entry.entry_id)
+
+    aioclient_mock.clear_requests()
+    aioclient_mock.get(URL, exc=ClientError("coupé"))
+    etat_site["exc"] = ClientError("coupé")
+    freezer.move_to("2026-12-05 10:00:00+00:00")
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert _issues(hass) == {"donnees_anciennes"}
+
+
+async def test_alerte_publication_bloquee(hass, aioclient_mock, tempo_json, etat_site):
+    etat_site["options"] = {"tempo": {"publication": "bloquee"}, "base": {"publication": "ok"}}
+    aioclient_mock.get(URL, json=tempo_json)
+    entry = _entree()
+    await _installer(hass, entry)
+    assert _issues(hass) == {"publication_bloquee"}
+
+    etat_site["options"]["tempo"]["publication"] = "ok"
+    await entry.runtime_data.async_refresh()
+    assert _issues(hass) == set()

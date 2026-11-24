@@ -41,6 +41,18 @@ utile pour l'option choisie (aucun pour Base) :
 | Entité « jour de pointe EJP » (EJP) | Suivre les 22 jours de pointe en EJP. États `on`/`off` ou `pointe`/`normal`. L'entité doit indiquer si le **jour calendaire en cours** est un jour de pointe, et ne basculer qu'à minuit ou après (pas dès l'annonce de la veille). Le prix « pointe » s'applique de 7 h à 1 h : la tranche 0 h-1 h suit le jour de pointe **de la veille**. Sans entité, le prix « normal » est utilisé tout le temps (attribut `jours_de_pointe_suivis: false`). |
 | Heures creuses (HP/HC) | Calculer le capteur *Prix actuel* en HP/HC, ex. `22:00-06:00` ou `01:30-07:30,12:30-14:30`. Elles sont propres à votre compteur (Enedis) et ne sont pas publiées. |
 
+### D'où viennent la couleur Tempo et les jours de pointe EJP ?
+
+L'intégration ne les récupère pas elle-même : elle suit une entité de votre choix.
+
+- **Tempo** : l'intégration [RTE Tempo](https://github.com/hekmon/rtetempo) (HACS, clé d'API RTE gratuite) fournit
+  *Couleur actuelle* (`sensor.rte_tempo_couleur_actuelle`, états `Bleu`/`Blanc`/`Rouge`), qui change à 6 h comme le jour
+  Tempo : c'est l'entité à choisir. Toute autre entité convient si ses états sont `bleu`/`blanc`/`rouge` (ou
+  `blue`/`white`/`red`, sans tenir compte des majuscules) et si elle suit le jour Tempo en cours.
+- **EJP** : il n'y a pas d'intégration courante. Le plus simple est un *interrupteur* (`input_boolean`) allumé les jours
+  de pointe, à la main ou par une automatisation, à basculer à minuit (voir le tableau ci-dessus). Sans entité, le prix
+  « normal » est utilisé.
+
 ## Capteurs
 
 Un appareil *Tarif kWh* (un seul contrat) avec :
@@ -57,6 +69,16 @@ Un appareil *Tarif kWh* (un seul contrat) avec :
 Paramètres → Tableaux de bord → **Énergie** → Réseau électrique → modifier la consommation du réseau → *Utiliser une
 entité avec le prix actuel* → **Prix actuel**. Il faut une **consommation du réseau** (compteur Linky lu par un module
 TIC ou par les données Enedis, par exemple) : Home Assistant ne calcule pas de coût pour les « appareils individuels ».
+
+## Alertes
+
+Dans Paramètres → **Réparations**, l'intégration signale :
+
+- **Prix du kWh peut-être plus à jour** : la source n'a pas été vérifiée depuis plus de 7 jours (elle l'est normalement
+  deux fois par jour). Les capteurs gardent les prix de la dernière lecture, faux si les tarifs ont changé entre-temps.
+- **Publication des prix bloquée** : une nouvelle grille de votre option n'a pas passé les contrôles de la source.
+
+Les deux alertes disparaissent d'elles-mêmes quand la situation redevient normale.
 
 ## Diagnostics
 

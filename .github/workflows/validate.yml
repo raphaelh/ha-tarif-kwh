@@ -25,11 +25,25 @@ jobs:
           category: integration
 
   tests:
+    name: tests (HA ${{ matrix.ha }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Dernière version de Home Assistant.
+          - ha: récente
+            python: "3.13"
+            paquet: pytest-homeassistant-custom-component
+          # Version minimale annoncée dans hacs.json (2025.1) : HA 2025.1.4.
+          - ha: "2025.1"
+            python: "3.13"
+            # pycares récent laisse un fil « safe shutdown » que le contrôle de fin de test de cette version refuse.
+            paquet: "'pytest-homeassistant-custom-component==0.13.205' 'pycares<4.9'"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
-      - run: pip install -r requirements_test.txt
+          python-version: ${{ matrix.python }}
+      - run: pip install ${{ matrix.paquet }}
       - run: pytest -q

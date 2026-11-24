@@ -12,6 +12,8 @@ SCHEMA_VERSION = 1
 # Les tarifs ne changent que quelques fois par an : une lecture par jour suffit
 # (avec ETag, GitHub Pages répond 304 sans corps tant que rien n'a changé).
 INTERVALLE_LECTURE = timedelta(hours=24)
+# Au-delà, alerte « prix peut-être plus à jour » : la collecte passe deux fois par jour.
+SEUIL_DONNEES_ANCIENNES = timedelta(days=7)
 
 CONF_OPTION = "option"
 CONF_PUISSANCE = "puissance"

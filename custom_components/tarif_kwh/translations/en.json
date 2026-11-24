@@ -133,5 +133,15 @@
         "name": "Current price"
       }
     }
+  },
+  "issues": {
+    "donnees_anciennes": {
+      "title": "kWh prices may be out of date",
+      "description": "The price source ({url}) has not been checked since {date} ({jours} days). The sensors keep the prices from the last read: they are wrong if tariffs changed since then (usually on 1 February and 1 August). This alert clears itself once the source is up to date again."
+    },
+    "publication_bloquee": {
+      "title": "Price publication blocked ({option})",
+      "description": "The price source blocked publication of the \"{option}\" option: a new tariff did not pass its checks. The sensors keep the last validated tariff, which may no longer apply. Details in {url}. This alert clears itself once publication resumes."
+    }
   }
 }
