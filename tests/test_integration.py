@@ -5,7 +5,12 @@ from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.helpers import entity_registry as er
 from homeassistant.setup import async_setup_component
-from pytest_homeassistant_custom_component.common import MockConfigEntry, async_fire_time_changed
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_fire_time_changed,
+    mock_restore_cache_with_extra_data,
+)
+from homeassistant.core import State
 
 from custom_components.tarif_kwh.const import DOMAIN
 
@@ -198,3 +203,67 @@ async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
     hass.states.async_set("binary_sensor.ejp_pointe", "unavailable")
     await hass.async_block_till_done()
     assert _etat(hass, avec, "prix_actuel").state == "unknown"
+
+
+def _ejp_avec_entite(**extra):
+    return MockConfigEntry(
+        domain=DOMAIN, title="EJP 12", unique_id="ejp_12",
+        data={"option": "ejp", "puissance": "12", "pointe_ejp": "binary_sensor.ejp_pointe", **extra},
+    )
+
+
+async def test_ejp_tranche_0h_1h_suit_la_veille(hass, aioclient_mock, ejp_json, freezer):
+    """0h-1h appartient au jour de pointe de la veille, même si l'entité a basculé à minuit."""
+    await hass.config.async_set_time_zone("Europe/Paris")
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    p = ejp_json["actuelle"]["puissances"]["12"]["prix_ttc"]
+    freezer.move_to("2026-11-23 22:30:00+00:00")  # 23h30 à Paris
+    hass.states.async_set("binary_sensor.ejp_pointe", "on")
+    entry = _ejp_avec_entite()
+    await _installer(hass, entry)
+    assert float(_etat(hass, entry, "prix_actuel").state) == p["pointe"]
+
+    # Minuit passé : l'entité indique le nouveau jour (normal), mais 0h30 reste en pointe.
+    freezer.move_to("2026-11-23 23:30:00+00:00")  # 0h30 le 24
+    hass.states.async_set("binary_sensor.ejp_pointe", "off")
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert float(_etat(hass, entry, "prix_actuel").state) == p["pointe"]
+
+    freezer.move_to("2026-11-24 00:30:00+00:00")  # 1h30 : normal
+    async_fire_time_changed(hass)
+    await hass.async_block_till_done()
+    assert float(_etat(hass, entry, "prix_actuel").state) == p["normal"]
+
+
+async def test_ejp_0h_1h_apres_redemarrage(hass, aioclient_mock, ejp_json, freezer):
+    """Un redémarrage à 0h30 retrouve la veille grâce à la valeur restaurée ; sans elle : inconnu."""
+    await hass.config.async_set_time_zone("Europe/Paris")
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    p = ejp_json["actuelle"]["puissances"]["12"]["prix_ttc"]
+    freezer.move_to("2026-11-23 23:30:00+00:00")  # 0h30 le 24
+    hass.states.async_set("binary_sensor.ejp_pointe", "off")
+    entry = _ejp_avec_entite()
+    entry.add_to_hass(hass)
+    reg = er.async_get(hass)
+    reg.async_get_or_create(
+        "sensor", DOMAIN, f"{entry.entry_id}_prix_actuel", suggested_object_id="ejp_prix_actuel",
+        config_entry=entry,
+    )
+    mock_restore_cache_with_extra_data(
+        hass,
+        [(State("sensor.ejp_prix_actuel", "0.1"), {"date": "2026-11-23", "pointe": True})],
+    )
+    assert await hass.config_entries.async_setup(entry.entry_id)
+    await hass.async_block_till_done()
+    assert float(_etat(hass, entry, "prix_actuel").state) == p["pointe"]
+
+
+async def test_ejp_0h_1h_sans_observation_inconnu(hass, aioclient_mock, ejp_json, freezer):
+    await hass.config.async_set_time_zone("Europe/Paris")
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    freezer.move_to("2026-11-23 23:30:00+00:00")  # 0h30 le 24, rien d'observé la veille
+    hass.states.async_set("binary_sensor.ejp_pointe", "on")
+    entry = _ejp_avec_entite()
+    await _installer(hass, entry)
+    assert _etat(hass, entry, "prix_actuel").state == "unknown"

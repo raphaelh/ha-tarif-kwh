@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -10,6 +10,7 @@ from homeassistant.core import Event, EventStateChangedData, HomeAssistant, call
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
+from homeassistant.helpers.restore_state import ExtraStoredData, RestoredExtraData, RestoreEntity
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -143,7 +144,7 @@ class DateEffet(TarifKwhBase):
         return {"statut": g.get("statut"), "ttc_estime": g.get("ttc_estime")}
 
 
-class PrixActuel(TarifKwhBase):
+class PrixActuel(TarifKwhBase, RestoreEntity):
     """Prix TTC du kWh à l'instant, d'après l'heure (et la couleur Tempo ou le jour de pointe EJP)."""
 
     _attr_translation_key = "prix_actuel"
@@ -157,9 +158,18 @@ class PrixActuel(TarifKwhBase):
         self._plages_tempo = grille.parse_plages(PLAGES_TEMPO_HC)
         self._plages_pointe = grille.parse_plages(PLAGES_EJP_POINTE)
         self._periode: str | None = None
+        # Dernier jour de pointe observé (date, vrai/faux) : sert à 0h-1h, tranche qui
+        # appartient encore au jour de pointe de la veille.
+        self._observation: tuple[date, bool] | None = None
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
+        if self._option == "ejp" and (dernier := await self.async_get_last_extra_data()):
+            try:
+                brut = dernier.as_dict()
+                self._observation = (date.fromisoformat(brut["date"]), bool(brut["pointe"]))
+            except (KeyError, TypeError, ValueError):
+                self._observation = None
         self.async_on_remove(async_track_time_change(self.hass, self._tick, second=0))
         if self._entite_suivie:
             self.async_on_remove(
@@ -181,7 +191,7 @@ class PrixActuel(TarifKwhBase):
         if self._option == "tempo" and self._entite_suivie:
             couleur = grille.normaliser_couleur(etat.state if etat else None)
         if self._option == "ejp" and self._entite_suivie:
-            jour_pointe = grille.normaliser_pointe(etat.state if etat else None)
+            jour_pointe = self._jour_pointe(grille.normaliser_pointe(etat.state if etat else None))
         return grille.periode_courante(
             self._option,
             dt_util.now().time(),
@@ -191,6 +201,28 @@ class PrixActuel(TarifKwhBase):
             jour_pointe=jour_pointe,
             plages_pointe=self._plages_pointe,
         )
+
+    def _jour_pointe(self, courant: bool | None) -> bool | None:
+        """Jour de pointe qui s'applique à l'instant, ou None si on ne le connaît pas.
+
+        De 7h à 1h, c'est le jour de pointe du jour calendaire (l'entité). De 0h à 1h, la
+        pointe est celle de la veille : on se sert de la dernière observation faite la veille.
+        """
+        maintenant = dt_util.now()
+        aujourdhui = maintenant.date()
+        if maintenant.hour >= 1:
+            if courant is not None:
+                self._observation = (aujourdhui, courant)
+            return courant
+        if self._observation and self._observation[0] == aujourdhui - timedelta(days=1):
+            return self._observation[1]
+        return None
+
+    @property
+    def extra_restore_state_data(self) -> ExtraStoredData | None:
+        if self._observation is None:
+            return None
+        return RestoredExtraData({"date": self._observation[0].isoformat(), "pointe": self._observation[1]})
 
     @property
     def native_value(self) -> float | None:
