@@ -28,7 +28,7 @@ def _custom(recorder_db_url, enable_custom_integrations):  # recorder_db_url ava
 def _entree(**extra):
     return MockConfigEntry(
         domain=DOMAIN,
-        title="Tarif Bleu",
+        title="Tarif kWh",
         unique_id=DOMAIN,
         data={"option": "tempo", "puissance": "6", **extra},
     )
@@ -156,7 +156,7 @@ async def test_config_flow(hass):
         r["flow_id"], {"option": "hphc", "puissance": "9", "heures_creuses": "22:00-06:00"}
     )
     assert r["type"] == "create_entry"
-    assert r["title"] == "Tarif Bleu"
+    assert r["title"] == "Tarif kWh"
     assert r["data"] == {
         "option": "hphc", "puissance": "9", "couleur_tempo": None, "pointe_ejp": None,
         "heures_creuses": "22:00-06:00",
@@ -186,7 +186,7 @@ async def test_prix_actuel_ejp_sans_entite(hass, aioclient_mock, ejp_json, freez
     aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
     p9 = ejp_json["actuelle"]["puissances"]["9"]["prix_ttc"]
     # Sans entité : prix normal, signalé dans les attributs.
-    sans = MockConfigEntry(domain=DOMAIN, title="Tarif Bleu", unique_id=DOMAIN, data={"option": "ejp", "puissance": "9"})
+    sans = MockConfigEntry(domain=DOMAIN, title="Tarif kWh", unique_id=DOMAIN, data={"option": "ejp", "puissance": "9"})
     await _installer(hass, sans)
     etat = _etat(hass, sans, "prix_actuel")
     assert float(etat.state) == p9["normal"]
@@ -216,7 +216,7 @@ async def test_prix_actuel_ejp_avec_entite(hass, aioclient_mock, ejp_json, freez
 
 def _ejp_avec_entite(**extra):
     return MockConfigEntry(
-        domain=DOMAIN, title="Tarif Bleu", unique_id=DOMAIN,
+        domain=DOMAIN, title="Tarif kWh", unique_id=DOMAIN,
         data={"option": "ejp", "puissance": "12", "pointe_ejp": "binary_sensor.ejp_pointe", **extra},
     )
 
@@ -351,7 +351,7 @@ async def test_changer_la_puissance_garde_les_identifiants(hass, aioclient_mock,
 
 async def test_options_puissance_invalide_pour_l_option(hass, aioclient_mock, ejp_json):
     aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
-    entry = MockConfigEntry(domain=DOMAIN, title="Tarif Bleu", unique_id=DOMAIN, data={"option": "ejp", "puissance": "9"})
+    entry = MockConfigEntry(domain=DOMAIN, title="Tarif kWh", unique_id=DOMAIN, data={"option": "ejp", "puissance": "9"})
     await _installer(hass, entry)
     r = await hass.config_entries.options.async_init(entry.entry_id)
     r = await hass.config_entries.options.async_configure(r["flow_id"], {"option": "ejp", "puissance": "6"})

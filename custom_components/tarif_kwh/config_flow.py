@@ -30,7 +30,7 @@ from .const import (
     reglages,
 )
 
-TITRE = "Tarif Bleu"
+TITRE = "Tarif kWh"
 
 
 def _selecteur_option() -> SelectSelector:

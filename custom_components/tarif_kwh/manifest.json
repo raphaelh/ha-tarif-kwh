@@ -1,6 +1,6 @@
 {
   "domain": "tarif_kwh",
-  "name": "Tarif kWh (Tarif Bleu EDF)",
+  "name": "Tarif kWh",
   "after_dependencies": [
     "recorder"
   ],
@@ -14,5 +14,5 @@
   "issue_tracker": "https://github.com/raphaelh/ha-tarif-kwh/issues",
   "requirements": [],
   "single_config_entry": true,
-  "version": "0.3.0"
+  "version": "0.3.1"
 }

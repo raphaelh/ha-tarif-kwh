@@ -1,5 +1,5 @@
 {
-  "name": "Tarif kWh (Tarif Bleu EDF)",
+  "name": "Tarif kWh",
   "homeassistant": "2025.1.0",
   "render_readme": true
 }
