@@ -1,0 +1,16 @@
+# Mises à jour proposées par PR (testées par le workflow Validation avant fusion).
+# Seules les actions GitHub sont suivies : l'intégration n'a aucune dépendance Python
+# (manifest.json, "requirements": []) et requirements_test.txt ne fixe aucune version.
+# Les versions figées du job HA 2025.1 sont volontaires et Dependabot ne lit pas les
+# « pip install » des workflows. La version de Python des tests reste à monter à la main.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "Actions"
