@@ -413,3 +413,17 @@ async def test_changer_d_option_garde_prix_actuel_et_retire_l_ancien(hass, aiocl
     assert reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_prix_hp")
     assert reg.async_get_entity_id("sensor", DOMAIN, f"{entry.entry_id}_prix_actuel") == prix_actuel_id
     assert hass.states.get(prix_actuel_id).attributes["periode"] in ("hp", "hc")
+
+
+async def test_diagnostics(hass, aioclient_mock, tempo_json):
+    from custom_components.tarif_kwh.diagnostics import async_get_config_entry_diagnostics
+
+    aioclient_mock.get(URL, json=tempo_json, headers={"ETag": '"v1"'})
+    entry = _entree(couleur_tempo="sensor.couleur_tempo")
+    await _installer(hass, entry)
+    diag = await async_get_config_entry_diagnostics(hass, entry)
+    assert diag["reglages"]["couleur_tempo"] == "sensor.couleur_tempo"
+    assert diag["lecture"] == {"url": URL, "derniere_reussie": True, "derniere_erreur": None, "etag": '"v1"'}
+    assert diag["donnees"]["actuelle"]["date_effet"] == tempo_json["actuelle"]["date_effet"]
+    assert "18" in diag["donnees"]["actuelle"]["puissances"]
+    assert diag["donnees"]["prochaine"] is None

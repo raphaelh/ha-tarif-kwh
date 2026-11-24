@@ -1,0 +1,18 @@
+{
+  "entity": {
+    "sensor": {
+      "prix": {
+        "default": "mdi:currency-eur"
+      },
+      "prix_actuel": {
+        "default": "mdi:cash-clock"
+      },
+      "abonnement": {
+        "default": "mdi:file-sign"
+      },
+      "date_effet": {
+        "default": "mdi:calendar-start"
+      }
+    }
+  }
+}
