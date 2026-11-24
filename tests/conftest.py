@@ -26,3 +26,8 @@ def tempo_json():
 @pytest.fixture
 def ejp_json():
     return json.loads((RACINE / "data" / "ejp.json").read_text())
+
+
+@pytest.fixture
+def hphc_json():
+    return json.loads((RACINE / "data" / "hphc.json").read_text())

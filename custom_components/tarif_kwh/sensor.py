@@ -9,6 +9,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
 from homeassistant.core import Event, EventStateChangedData, HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.event import async_track_state_change_event, async_track_time_change
@@ -28,6 +29,7 @@ from .const import (
     OPTIONS,
     PLAGES_EJP_POINTE,
     PLAGES_TEMPO_HC,
+    reglages,
 )
 from .coordinator import TarifKwhCoordinator
 
@@ -40,9 +42,9 @@ async def async_setup_entry(
     hass: HomeAssistant, entry: TarifKwhConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
     coordinator = entry.runtime_data
-    option = entry.data[CONF_OPTION]
-    reglages = {**entry.data, **entry.options}
-    kva = reglages[CONF_PUISSANCE]
+    cfg = reglages(entry)
+    option = cfg[CONF_OPTION]
+    kva = cfg[CONF_PUISSANCE]
 
     entites: list[TarifKwhBase] = [
         PrixPeriode(coordinator, entry, kva, periode)
@@ -50,12 +52,21 @@ async def async_setup_entry(
     ]
     entites += [Abonnement(coordinator, entry, kva), DateEffet(coordinator, entry, kva)]
 
-    couleur = reglages.get(CONF_COULEUR_TEMPO)
-    heures_creuses = reglages.get(CONF_HEURES_CREUSES)
-    pointe = reglages.get(CONF_POINTE_EJP)
+    couleur = cfg.get(CONF_COULEUR_TEMPO)
+    heures_creuses = cfg.get(CONF_HEURES_CREUSES)
+    pointe = cfg.get(CONF_POINTE_EJP)
     if option in ("base", "ejp") or (option == "tempo" and couleur) or (option == "hphc" and heures_creuses):
         entites.append(PrixActuel(coordinator, entry, kva, couleur or pointe, heures_creuses))
+    _retirer_entites_obsoletes(hass, entry, {e.unique_id for e in entites})
     async_add_entities(entites)
+
+
+def _retirer_entites_obsoletes(hass: HomeAssistant, entry: TarifKwhConfigEntry, gardees: set[str]) -> None:
+    """Supprime les entités d'une ancienne option (changée dans « Configurer »)."""
+    registre = er.async_get(hass)
+    for e in er.async_entries_for_config_entry(registre, entry.entry_id):
+        if e.unique_id not in gardees:
+            registre.async_remove(e.entity_id)
 
 
 class TarifKwhBase(CoordinatorEntity[TarifKwhCoordinator], SensorEntity):
@@ -67,14 +78,14 @@ class TarifKwhBase(CoordinatorEntity[TarifKwhCoordinator], SensorEntity):
     def __init__(self, coordinator: TarifKwhCoordinator, entry: TarifKwhConfigEntry, kva: str, cle: str) -> None:
         super().__init__(coordinator)
         self._kva = kva
-        self._option = entry.data[CONF_OPTION]
-        reglages = {**entry.data, **entry.options}
+        cfg = reglages(entry)
+        self._option = cfg[CONF_OPTION]
         self._attr_unique_id = f"{entry.entry_id}_{cle}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="tarif-kwh (non officiel)",
-            model=f"Tarif Bleu {OPTIONS[self._option]} - {reglages[CONF_PUISSANCE]} kVA",
+            model=f"Tarif Bleu {OPTIONS[self._option]} - {cfg[CONF_PUISSANCE]} kVA",
             entry_type=DeviceEntryType.SERVICE,
             configuration_url="https://raphaelh.github.io/tarif-kwh/",
         )

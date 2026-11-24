@@ -1,4 +1,4 @@
-"""Configuration depuis l'interface."""
+"""Configuration depuis l'interface : un seul contrat (option + puissance)."""
 
 from __future__ import annotations
 
@@ -27,30 +27,56 @@ from .const import (
     OPTIONS,
     PUISSANCES,
     TOUTES_PUISSANCES,
+    reglages,
 )
 
+TITRE = "Tarif Bleu"
 
-def _extras(defauts: dict[str, Any]) -> dict[Any, Any]:
-    return {
-        vol.Optional(
-            CONF_COULEUR_TEMPO,
-            description={"suggested_value": defauts.get(CONF_COULEUR_TEMPO)},
-        ): EntitySelector(EntitySelectorConfig(domain=["sensor", "select", "input_select"])),
-        vol.Optional(
-            CONF_POINTE_EJP,
-            description={"suggested_value": defauts.get(CONF_POINTE_EJP)},
-        ): EntitySelector(
-            EntitySelectorConfig(domain=["binary_sensor", "sensor", "input_boolean", "input_select"])
-        ),
-        vol.Optional(
-            CONF_HEURES_CREUSES,
-            description={"suggested_value": defauts.get(CONF_HEURES_CREUSES)},
-        ): TextSelector(),
-    }
+
+def _selecteur_option() -> SelectSelector:
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=[{"value": k, "label": v} for k, v in OPTIONS.items()],
+            mode=SelectSelectorMode.DROPDOWN,
+            translation_key="option",
+        )
+    )
+
+
+def _selecteur_puissance() -> SelectSelector:
+    return SelectSelector(
+        SelectSelectorConfig(
+            options=list(TOUTES_PUISSANCES),
+            mode=SelectSelectorMode.DROPDOWN,
+            translation_key="puissance",
+        )
+    )
+
+
+def _schema(defauts: dict[str, Any]) -> vol.Schema:
+    return vol.Schema(
+        {
+            vol.Required(CONF_OPTION, default=defauts.get(CONF_OPTION, "tempo")): _selecteur_option(),
+            vol.Required(CONF_PUISSANCE, default=defauts.get(CONF_PUISSANCE, "6")): _selecteur_puissance(),
+            vol.Optional(
+                CONF_COULEUR_TEMPO, description={"suggested_value": defauts.get(CONF_COULEUR_TEMPO)}
+            ): EntitySelector(EntitySelectorConfig(domain=["sensor", "select", "input_select"])),
+            vol.Optional(
+                CONF_POINTE_EJP, description={"suggested_value": defauts.get(CONF_POINTE_EJP)}
+            ): EntitySelector(
+                EntitySelectorConfig(domain=["binary_sensor", "sensor", "input_boolean", "input_select"])
+            ),
+            vol.Optional(
+                CONF_HEURES_CREUSES, description={"suggested_value": defauts.get(CONF_HEURES_CREUSES)}
+            ): TextSelector(),
+        }
+    )
 
 
 def _erreurs(saisie: dict[str, Any]) -> dict[str, str]:
     erreurs: dict[str, str] = {}
+    if saisie[CONF_PUISSANCE] not in PUISSANCES[saisie[CONF_OPTION]]:
+        erreurs[CONF_PUISSANCE] = "puissance_invalide"
     texte = saisie.get(CONF_HEURES_CREUSES)
     if texte:
         try:
@@ -60,50 +86,30 @@ def _erreurs(saisie: dict[str, Any]) -> dict[str, str]:
     return erreurs
 
 
-def _nettoyer(saisie: dict[str, Any]) -> dict[str, Any]:
-    return {k: v for k, v in saisie.items() if v not in (None, "")}
+def _complet(saisie: dict[str, Any]) -> dict[str, Any]:
+    """Toutes les clés présentes : une valeur vidée doit masquer l'ancienne."""
+    return {
+        CONF_OPTION: saisie[CONF_OPTION],
+        CONF_PUISSANCE: saisie[CONF_PUISSANCE],
+        CONF_COULEUR_TEMPO: saisie.get(CONF_COULEUR_TEMPO) or None,
+        CONF_POINTE_EJP: saisie.get(CONF_POINTE_EJP) or None,
+        CONF_HEURES_CREUSES: saisie.get(CONF_HEURES_CREUSES) or None,
+    }
 
 
 class TarifKwhConfigFlow(ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        # Un seul contrat : le manifeste interdit une seconde entrée (single_config_entry).
         erreurs: dict[str, str] = {}
         if user_input is not None:
-            option, kva = user_input[CONF_OPTION], user_input[CONF_PUISSANCE]
-            if kva not in PUISSANCES[option]:
-                erreurs[CONF_PUISSANCE] = "puissance_invalide"
-            erreurs.update(_erreurs(user_input))
+            erreurs = _erreurs(user_input)
             if not erreurs:
-                # Une entrée par option : la puissance se change ensuite dans « Configurer »
-                # sans changer les identifiants des entités.
-                await self.async_set_unique_id(option)
+                await self.async_set_unique_id(DOMAIN)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Tarif Bleu {OPTIONS[option]}",
-                    data=_nettoyer(user_input),
-                )
-        defauts = user_input or {}
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_OPTION, default=defauts.get(CONF_OPTION, "tempo")): SelectSelector(
-                    SelectSelectorConfig(
-                        options=[{"value": k, "label": v} for k, v in OPTIONS.items()],
-                        mode=SelectSelectorMode.DROPDOWN,
-                        translation_key="option",
-                    )
-                ),
-                vol.Required(CONF_PUISSANCE, default=defauts.get(CONF_PUISSANCE, "6")): SelectSelector(
-                    SelectSelectorConfig(
-                        options=list(TOUTES_PUISSANCES),
-                        mode=SelectSelectorMode.DROPDOWN,
-                        translation_key="puissance",
-                    )
-                ),
-                **_extras(defauts),
-            }
-        )
-        return self.async_show_form(step_id="user", data_schema=schema, errors=erreurs)
+                return self.async_create_entry(title=TITRE, data=_complet(user_input))
+        return self.async_show_form(step_id="user", data_schema=_schema(user_input or {}), errors=erreurs)
 
     @staticmethod
     @callback
@@ -114,32 +120,9 @@ class TarifKwhConfigFlow(ConfigFlow, domain=DOMAIN):
 class TarifKwhOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
         erreurs: dict[str, str] = {}
-        option = self.config_entry.data[CONF_OPTION]
         if user_input is not None:
             erreurs = _erreurs(user_input)
-            if user_input[CONF_PUISSANCE] not in PUISSANCES[option]:
-                erreurs[CONF_PUISSANCE] = "puissance_invalide"
             if not erreurs:
-                # Clés toujours présentes : une valeur vidée doit masquer celle de entry.data.
-                return self.async_create_entry(
-                    data={
-                        CONF_PUISSANCE: user_input[CONF_PUISSANCE],
-                        CONF_COULEUR_TEMPO: user_input.get(CONF_COULEUR_TEMPO) or None,
-                        CONF_POINTE_EJP: user_input.get(CONF_POINTE_EJP) or None,
-                        CONF_HEURES_CREUSES: user_input.get(CONF_HEURES_CREUSES) or None,
-                    }
-                )
-        courant = {**self.config_entry.data, **self.config_entry.options, **(user_input or {})}
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_PUISSANCE, default=courant[CONF_PUISSANCE]): SelectSelector(
-                    SelectSelectorConfig(
-                        options=list(PUISSANCES[option]),
-                        mode=SelectSelectorMode.DROPDOWN,
-                        translation_key="puissance",
-                    )
-                ),
-                **_extras(courant),
-            }
-        )
-        return self.async_show_form(step_id="init", data_schema=schema, errors=erreurs)
+                return self.async_create_entry(data=_complet(user_input))
+        courant = {**reglages(self.config_entry), **(user_input or {})}
+        return self.async_show_form(step_id="init", data_schema=_schema(courant), errors=erreurs)

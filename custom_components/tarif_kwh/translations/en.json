@@ -23,20 +23,24 @@
       "plages_invalides": "Expected format: HH:MM-HH:MM, comma separated."
     },
     "abort": {
-      "already_configured": "This option is already configured: change its power from \"Configure\"."
+      "already_configured": "The contract is already configured: change it from \"Configure\".",
+      "single_instance_allowed": "The contract is already configured: change it from \"Configure\"."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Settings",
+        "title": "My contract",
         "data": {
+          "option": "Tariff option",
           "puissance": "Subscribed power (kVA)",
           "couleur_tempo": "Entity giving today's Tempo colour",
           "heures_creuses": "Off-peak hours of your meter, e.g. 22:00-06:00",
           "pointe_ejp": "Entity telling whether today is an EJP peak day"
         },
         "data_description": {
+          "couleur_tempo": "For the \"Current price\" sensor with Tempo (states bleu/blanc/rouge or blue/white/red).",
+          "heures_creuses": "For the \"Current price\" sensor with peak/off-peak. Several ranges allowed, comma separated.",
           "pointe_ejp": "For the \"Current price\" sensor with EJP (states on/off, or pointe/normal). Without it, the \"normal\" price is always used."
         }
       }

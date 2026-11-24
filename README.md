@@ -15,10 +15,10 @@ Intégration Home Assistant (installable par [HACS](https://hacs.xyz)) qui expos
 
 ## Configuration
 
-On choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). Il y a **une entrée par option** ; la puissance
-se change ensuite dans **Configurer**, sans changer les identifiants des entités (qui ne contiennent pas la puissance :
-`sensor.tarif_bleu_tempo_prix_bleu_hc`, etc., à la langue de Home Assistant près). Trois réglages facultatifs, modifiables
-dans **Configurer** :
+Un seul **contrat** : on choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). Les deux se changent
+ensuite dans **Configurer** (changement d'option ou de puissance du contrat). Les identifiants des entités ne contiennent
+ni l'option ni la puissance : le capteur *Prix actuel* garde le sien quand l'option change ; les capteurs par période de
+l'ancienne option sont supprimés et ceux de la nouvelle créés. Trois réglages facultatifs, eux aussi dans **Configurer** :
 
 | Réglage | Sert à |
 |---|---|

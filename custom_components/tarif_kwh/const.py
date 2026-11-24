@@ -19,6 +19,11 @@ CONF_COULEUR_TEMPO = "couleur_tempo"
 CONF_HEURES_CREUSES = "heures_creuses"
 CONF_POINTE_EJP = "pointe_ejp"
 
+def reglages(entry) -> dict:
+    """Réglages du contrat : les options (modifiées dans « Configurer ») priment sur la saisie initiale."""
+    return {**entry.data, **entry.options}
+
+
 OPTIONS = {
     "base": "Base",
     "hphc": "Heures pleines / creuses",
