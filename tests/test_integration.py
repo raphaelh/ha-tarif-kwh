@@ -12,13 +12,15 @@ from pytest_homeassistant_custom_component.common import (
 )
 from homeassistant.core import State
 
+from pytest_homeassistant_custom_component.components.recorder.common import async_wait_recording_done
+
 from custom_components.tarif_kwh.const import DOMAIN
 
 URL = "https://raphaelh.github.io/tarif-kwh/tempo.json"
 
 
 @pytest.fixture(autouse=True)
-def _custom(enable_custom_integrations):
+def _custom(recorder_db_url, enable_custom_integrations):  # recorder_db_url avant hass
     yield
 
 
@@ -76,9 +78,10 @@ async def test_prix_actuel_tempo(hass, aioclient_mock, tempo_json, freezer):
     await hass.async_block_till_done()
     assert float(_etat(hass, entry, "prix_actuel").state) == p6["rouge_hc"]
 
+    # Entité indisponible : la couleur ne change pas pendant le jour Tempo, on garde la dernière.
     hass.states.async_set("sensor.couleur_tempo", "unavailable")
     await hass.async_block_till_done()
-    assert _etat(hass, entry, "prix_actuel").state == "unknown"
+    assert float(_etat(hass, entry, "prix_actuel").state) == p6["rouge_hc"]
 
 
 async def test_pas_de_prix_actuel_sans_couleur(hass, aioclient_mock, tempo_json):
@@ -200,9 +203,10 @@ async def test_prix_actuel_ejp(hass, aioclient_mock, ejp_json, freezer):
     await hass.async_block_till_done()
     assert float(_etat(hass, avec, "prix_actuel").state) == p12["normal"]
 
+    # Entité indisponible : l'indicateur ne change pas dans la journée, on garde le dernier.
     hass.states.async_set("binary_sensor.ejp_pointe", "unavailable")
     await hass.async_block_till_done()
-    assert _etat(hass, avec, "prix_actuel").state == "unknown"
+    assert float(_etat(hass, avec, "prix_actuel").state) == p12["normal"]
 
 
 def _ejp_avec_entite(**extra):
@@ -267,3 +271,51 @@ async def test_ejp_0h_1h_sans_observation_inconnu(hass, aioclient_mock, ejp_json
     entry = _ejp_avec_entite()
     await _installer(hass, entry)
     assert _etat(hass, entry, "prix_actuel").state == "unknown"
+
+
+async def test_tempo_inconnu_si_aucune_valeur_du_jour(hass, aioclient_mock, tempo_json, freezer):
+    """Entité indisponible dès le départ, ni mémoire ni historique : inconnu, jamais un prix deviné."""
+    await hass.config.async_set_time_zone("Europe/Paris")
+    freezer.move_to("2026-11-23 11:00:00+00:00")
+    aioclient_mock.get(URL, json=tempo_json)
+    hass.states.async_set("sensor.couleur_tempo", "unavailable")
+    entry = _entree(couleur_tempo="sensor.couleur_tempo")
+    await _installer(hass, entry)
+    assert _etat(hass, entry, "prix_actuel").state == "unknown"
+
+
+async def test_tempo_relit_la_couleur_dans_l_historique(recorder_mock, hass, aioclient_mock, tempo_json, freezer):
+    """Au démarrage, l'entité couleur est souvent indisponible : l'enregistreur donne la couleur du jour."""
+    await hass.config.async_set_time_zone("Europe/Paris")
+    aioclient_mock.get(URL, json=tempo_json)
+    freezer.move_to("2026-11-23 07:00:00+00:00")  # 8h Paris : jour Tempo du 23
+    hass.states.async_set("sensor.couleur_tempo", "Rouge")
+    await async_wait_recording_done(hass)
+    freezer.move_to("2026-11-23 11:00:00+00:00")  # 12h
+    hass.states.async_set("sensor.couleur_tempo", "unavailable")
+    await async_wait_recording_done(hass)
+
+    entry = _entree(couleur_tempo="sensor.couleur_tempo")
+    await _installer(hass, entry)
+    p6 = tempo_json["actuelle"]["puissances"]["6"]["prix_ttc"]
+    assert float(_etat(hass, entry, "prix_actuel").state) == p6["rouge_hp"]
+
+
+async def test_ejp_0h_1h_relit_la_veille_dans_l_historique(recorder_mock, hass, aioclient_mock, ejp_json, freezer):
+    """Installation ou redémarrage à 0h30, sans valeur retenue : la veille vient de l'historique."""
+    await hass.config.async_set_time_zone("Europe/Paris")
+    aioclient_mock.get("https://raphaelh.github.io/tarif-kwh/ejp.json", json=ejp_json)
+    p = ejp_json["actuelle"]["puissances"]["12"]["prix_ttc"]
+    freezer.move_to("2026-11-23 10:00:00+00:00")  # 11h Paris, le 23 : jour de pointe
+    hass.states.async_set("binary_sensor.ejp_pointe", "on")
+    await async_wait_recording_done(hass)
+    freezer.move_to("2026-11-23 22:50:00+00:00")  # 23h50 : l'entité devient indisponible
+    hass.states.async_set("binary_sensor.ejp_pointe", "unavailable")
+    await async_wait_recording_done(hass)
+    freezer.move_to("2026-11-23 23:30:00+00:00")  # 0h30 le 24 : nouveau jour normal
+    hass.states.async_set("binary_sensor.ejp_pointe", "off")
+    await async_wait_recording_done(hass)
+
+    entry = _ejp_avec_entite()
+    await _installer(hass, entry)
+    assert float(_etat(hass, entry, "prix_actuel").state) == p["pointe"]

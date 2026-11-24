@@ -21,7 +21,7 @@ On choisit l'**option** (Base, HP/HC, Tempo, EJP) et la **puissance** (kVA). On 
 | Réglage | Sert à |
 |---|---|
 | Entité de la couleur Tempo | Calculer le capteur *Prix actuel* en Tempo. Les états `bleu`/`blanc`/`rouge` (ou `blue`/`white`/`red`) sont reconnus ; l'entité doit donner la couleur du **jour Tempo en cours** (qui change à 6 h). |
-| Entité « jour de pointe EJP » | Suivre les 22 jours de pointe en EJP. États `on`/`off` ou `pointe`/`normal`. L'entité doit indiquer si le **jour calendaire en cours** est un jour de pointe, et ne basculer qu'à minuit ou après (pas dès l'annonce de la veille). Le prix « pointe » s'applique de 7 h à 1 h : la tranche 0 h-1 h suit le jour de pointe **de la veille**, retenu par le capteur et conservé après un redémarrage. Si cette information manque (Home Assistant éteint toute la veille), le capteur est `unknown` pendant cette heure plutôt que faux. Sans entité, le prix « normal » est utilisé tout le temps (attribut `jours_de_pointe_suivis: false`). |
+| Entité « jour de pointe EJP » | Suivre les 22 jours de pointe en EJP. États `on`/`off` ou `pointe`/`normal`. L'entité doit indiquer si le **jour calendaire en cours** est un jour de pointe, et ne basculer qu'à minuit ou après (pas dès l'annonce de la veille). Le prix « pointe » s'applique de 7 h à 1 h : la tranche 0 h-1 h suit le jour de pointe **de la veille**. Sans entité, le prix « normal » est utilisé tout le temps (attribut `jours_de_pointe_suivis: false`). |
 | Heures creuses | Calculer le capteur *Prix actuel* en HP/HC, ex. `22:00-06:00` ou `01:30-07:30,12:30-14:30`. Elles sont propres à votre compteur (Enedis) et ne sont pas publiées. |
 
 ## Capteurs
@@ -34,6 +34,17 @@ Pour chaque entrée :
 - **Date d'effet de la grille** (désactivé par défaut) : avec le statut de la grille et `ttc_estime`.
 - **Prix actuel** (Base ; EJP ; Tempo avec une entité couleur ; HP/HC avec des heures creuses) : le prix du kWh à cet instant,
   utilisable comme « entité de prix » dans le tableau de bord **Énergie**.
+
+## Quand « Prix actuel » est `unknown`
+
+Jamais un prix deviné : si une information manque, le capteur est `unknown` (dans le tableau Énergie, le coût de
+l'intervalle n'est alors pas calculé).
+
+La couleur Tempo ne change pas pendant un jour Tempo (6 h à 6 h), ni l'indicateur de pointe pendant un jour calendaire.
+Quand l'entité devient indisponible, le capteur garde donc la **dernière valeur valide du jour**, conservée après un
+redémarrage. Au démarrage, ou à 0 h-1 h en EJP, la valeur du jour (ou de la veille) est relue dans l'**historique de
+l'enregistreur** de Home Assistant. Le capteur n'est `unknown` que si aucune de ces sources ne donne de valeur : par
+exemple Home Assistant éteint toute la journée concernée, ou une entité jamais disponible ce jour-là.
 
 ## Fonctionnement
 

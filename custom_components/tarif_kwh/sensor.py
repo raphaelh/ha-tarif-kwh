@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import date, timedelta
+import logging
+from datetime import date, datetime, time, timedelta
+from functools import partial
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -28,6 +30,8 @@ from .const import (
     PLAGES_TEMPO_HC,
 )
 from .coordinator import TarifKwhCoordinator
+
+_LOGGER = logging.getLogger(__name__)
 
 UNITE_PRIX = "EUR/kWh"
 
@@ -158,23 +162,86 @@ class PrixActuel(TarifKwhBase, RestoreEntity):
         self._plages_tempo = grille.parse_plages(PLAGES_TEMPO_HC)
         self._plages_pointe = grille.parse_plages(PLAGES_EJP_POINTE)
         self._periode: str | None = None
-        # Dernier jour de pointe observé (date, vrai/faux) : sert à 0h-1h, tranche qui
-        # appartient encore au jour de pointe de la veille.
-        self._observation: tuple[date, bool] | None = None
+        # Dernière valeur valide de l'entité suivie, avec le jour auquel elle s'applique :
+        # - EJP : jour de pointe (bool) du jour calendaire ;
+        # - Tempo : couleur du jour Tempo (6h-6h).
+        # Elle sert quand l'entité est indisponible, et à 0h-1h en EJP (tranche qui
+        # appartient encore au jour de pointe de la veille).
+        self._memoire: tuple[date, bool | str] | None = None
+
+    @property
+    def _suit_une_valeur(self) -> bool:
+        return bool(self._entite_suivie) and self._option in ("tempo", "ejp")
 
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
-        if self._option == "ejp" and (dernier := await self.async_get_last_extra_data()):
-            try:
-                brut = dernier.as_dict()
-                self._observation = (date.fromisoformat(brut["date"]), bool(brut["pointe"]))
-            except (KeyError, TypeError, ValueError):
-                self._observation = None
+        if self._suit_une_valeur:
+            await self._restaurer()
+            await self._completer_par_historique()
         self.async_on_remove(async_track_time_change(self.hass, self._tick, second=0))
         if self._entite_suivie:
             self.async_on_remove(
                 async_track_state_change_event(self.hass, [self._entite_suivie], self._entite_changee)
             )
+
+    async def _restaurer(self) -> None:
+        dernier = await self.async_get_last_extra_data()
+        if not dernier:
+            return
+        try:
+            brut = dernier.as_dict()
+            valeur = brut.get("valeur", brut.get("pointe"))  # « pointe » : format de la v0.1.1
+            if self._option == "ejp" and isinstance(valeur, bool):
+                self._memoire = (date.fromisoformat(brut["date"]), valeur)
+            elif self._option == "tempo" and valeur in ("bleu", "blanc", "rouge"):
+                self._memoire = (date.fromisoformat(brut["date"]), valeur)
+        except (KeyError, TypeError, ValueError):
+            self._memoire = None
+
+    def _fenetre(self) -> tuple[date, datetime, datetime]:
+        """Jour dont on cherche la valeur, et fenêtre de l'historique où la chercher."""
+        maintenant = dt_util.now()
+        if self._option == "tempo":
+            jour = (maintenant - timedelta(hours=6)).date()
+            debut = datetime.combine(jour, time(6), tzinfo=maintenant.tzinfo)
+            return jour, debut, maintenant
+        jour = maintenant.date() if maintenant.hour >= 1 else maintenant.date() - timedelta(days=1)
+        debut = datetime.combine(jour, time(1), tzinfo=maintenant.tzinfo)
+        fin = min(datetime.combine(jour + timedelta(days=1), time(0), tzinfo=maintenant.tzinfo), maintenant)
+        return jour, debut, fin
+
+    async def _completer_par_historique(self) -> None:
+        """Si la valeur du jour n'est pas connue (installation, redémarrage), la relire dans
+        l'historique de l'enregistreur : dernier état exploitable de l'entité sur la période."""
+        jour, debut, fin = self._fenetre()
+        if self._memoire and self._memoire[0] == jour:
+            return
+        if "recorder" not in self.hass.config.components or fin <= debut:
+            return
+        try:
+            from homeassistant.components.recorder import get_instance, history
+
+            etats = await get_instance(self.hass).async_add_executor_job(
+                partial(
+                    history.get_significant_states,
+                    self.hass,
+                    debut,
+                    fin,
+                    [self._entite_suivie],
+                    include_start_time_state=True,
+                    significant_changes_only=False,
+                    no_attributes=True,
+                )
+            )
+        except Exception:  # noqa: BLE001 - l'historique est un plus : sans lui, on reste prudent
+            _LOGGER.debug("Historique de %s illisible", self._entite_suivie, exc_info=True)
+            return
+        normaliser = grille.normaliser_couleur if self._option == "tempo" else grille.normaliser_pointe
+        for etat in reversed(etats.get(self._entite_suivie, [])):
+            valeur = normaliser(etat.state)
+            if valeur is not None:
+                self._memoire = (jour, valeur)
+                return
 
     @callback
     def _tick(self, _now: Any) -> None:
@@ -189,7 +256,7 @@ class PrixActuel(TarifKwhBase, RestoreEntity):
         jour_pointe: bool | None = False  # EJP sans entité : jour normal supposé
         etat = self.hass.states.get(self._entite_suivie) if self._entite_suivie else None
         if self._option == "tempo" and self._entite_suivie:
-            couleur = grille.normaliser_couleur(etat.state if etat else None)
+            couleur = self._valeur_du_jour(grille.normaliser_couleur(etat.state if etat else None))
         if self._option == "ejp" and self._entite_suivie:
             jour_pointe = self._jour_pointe(grille.normaliser_pointe(etat.state if etat else None))
         return grille.periode_courante(
@@ -202,27 +269,34 @@ class PrixActuel(TarifKwhBase, RestoreEntity):
             plages_pointe=self._plages_pointe,
         )
 
+    def _valeur_du_jour(self, courante: Any) -> Any:
+        """Valeur lue maintenant ; à défaut, la dernière valeur valide du même jour."""
+        jour = self._fenetre()[0]
+        if courante is not None:
+            self._memoire = (jour, courante)
+            return courante
+        if self._memoire and self._memoire[0] == jour:
+            return self._memoire[1]
+        return None
+
     def _jour_pointe(self, courant: bool | None) -> bool | None:
         """Jour de pointe qui s'applique à l'instant, ou None si on ne le connaît pas.
 
         De 7h à 1h, c'est le jour de pointe du jour calendaire (l'entité). De 0h à 1h, la
-        pointe est celle de la veille : on se sert de la dernière observation faite la veille.
+        pointe est celle de la veille, retenue ou relue dans l'historique.
         """
-        maintenant = dt_util.now()
-        aujourdhui = maintenant.date()
-        if maintenant.hour >= 1:
-            if courant is not None:
-                self._observation = (aujourdhui, courant)
-            return courant
-        if self._observation and self._observation[0] == aujourdhui - timedelta(days=1):
-            return self._observation[1]
+        if dt_util.now().hour >= 1:
+            return self._valeur_du_jour(courant)
+        jour, _, _ = self._fenetre()  # la veille
+        if self._memoire and self._memoire[0] == jour:
+            return self._memoire[1]
         return None
 
     @property
     def extra_restore_state_data(self) -> ExtraStoredData | None:
-        if self._observation is None:
+        if self._memoire is None:
             return None
-        return RestoredExtraData({"date": self._observation[0].isoformat(), "pointe": self._observation[1]})
+        return RestoredExtraData({"date": self._memoire[0].isoformat(), "valeur": self._memoire[1]})
 
     @property
     def native_value(self) -> float | None:
